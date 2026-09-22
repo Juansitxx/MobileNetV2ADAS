@@ -157,5 +157,39 @@ ResNet50 Teacher). Added `tests/test_baseline_model.py`
 output shape, so a future regression here fails a test instead of going
 unnoticed until Colab.
 
+## 2026-09-22 — Baseline CNN final architecture; notebook pipeline/training fixes
+
+- **Baseline CNN architecture finalized:** replaced the earlier 3-block +
+  extra-pooling-hack version with a clean 4-block design — Conv/Pool with
+  16/32/64/64 filters, `Flatten`, `Dense(64)`, `Dropout(0.4)`,
+  `Dense(2, name="logits")`. 224x224 input shrinks to 14x14 before
+  `Flatten` (12,544-length vector), avoiding the earlier hack layer.
+  Verified with real TensorFlow: **863,522 total params**, all trainable,
+  comfortably under the <1M budget. `BinaryCrossentropy(from_logits=True)`
+  and `BinaryAccuracy(threshold=0.0)` unchanged.
+- **Notebook 01 bug found and fixed: `prefetch` was not the last pipeline
+  step.** `make_dataset` previously called `.batch().prefetch()` before
+  augmentation was attached to `train_ds` in the next cell, so the actual
+  TRAIN pipeline order was `... -> batch -> prefetch -> augment` — prefetch
+  buffered pre-augmentation batches instead of the final ones.
+  Fixed: `make_dataset` now stops at `.batch()`; augmentation is mapped
+  onto `train_ds` only, and `.prefetch(AUTOTUNE)` is applied last, to all
+  three pipelines (train/val/test), in the same cell. Verified end-to-end
+  with real TensorFlow against a synthetic manifest: augmentation
+  confirmed absent from `val_ds`/`test_ds`, and prefetch confirmed to sit
+  after augmentation on `train_ds`.
+- **Notebook 01: baseline training now explicitly displays `loss`,
+  `val_loss`, `binary_accuracy`, `val_binary_accuracy`** (History keys
+  printed + a small loss/accuracy plot), not just implicit `.fit()`
+  capability. Verified with a real 2-epoch run on synthetic data.
+- **Notebook 01: added a "Train MobileNetV2 base (frozen backbone)"
+  section** (construction was already present; training was not), running
+  right after the baseline finishes, reusing the same evaluation routine
+  (`evaluate_multilabel_model`, factored out of the baseline's evaluation
+  cell to avoid duplicating it). Verified end-to-end with a real 1-epoch
+  run: 2,562 trainable / 2,257,984 non-trainable params confirms the
+  backbone stayed frozen. **ResNet50 Teacher training and Knowledge
+  Distillation remain explicitly not executed.**
+
 Add a new dated entry for each subsequent material decision (class_weight
 adoption, fine-tuning layer count, KD alpha/T choice, etc.).

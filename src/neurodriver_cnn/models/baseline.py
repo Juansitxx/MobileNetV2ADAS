@@ -11,15 +11,15 @@ thresholded probabilities for metrics/reporting
 (``neurodriver_cnn.evaluation.metrics``), never trained directly. See
 docs/decisions_log.md (2026-09-22).
 
-Parameter budget (fixed 2026-09-22, see docs/decisions_log.md): at
-224x224 input, ``Conv(32)/Conv(64)/Conv(128)`` each followed by a 2x2
-MaxPool only shrinks the feature map to 28x28 — ``Flatten`` then produces a
-100,352-length vector, and a single ``Dense(128)`` on top of that alone
-costs ~12.8M parameters, ~13x over a <1M "lightweight CNN" budget. A single
-extra 4x4 pool right before ``Flatten`` (28x28 -> 7x7) fixes this while
-keeping every layer the spec calls for (Conv/Pool x3, Flatten, Dense,
-Dropout) — see ``count_parameters`` usage in Notebook 01 for the verified
-total (~495K).
+Parameter budget (final architecture fixed 2026-09-22, see
+docs/decisions_log.md): four Conv/Pool blocks (16/32/64/64 filters) shrink
+224x224 down to 14x14 before ``Flatten``, keeping the flattened vector
+(12,544) small enough that ``Dense(64)`` on top of it stays cheap.
+Verified with real TensorFlow: **863,522 total params**, under the <1M
+"lightweight CNN" budget. (An earlier 3-block version needed an extra
+pooling hack to hit the same budget — this 4-block architecture hits it
+directly, with no hack layer, which is cleaner and is now the fixed
+design.)
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ NUM_TARGETS = 2  # [vehicle_logit, pedestrian_logit]
 
 
 def build_baseline_cnn(input_shape: tuple[int, int, int] = (224, 224, 3), dropout: float = 0.4):
-    """Input -> Rescaling(1/255) -> Conv/Pool x3 -> extra pool -> Flatten -> Dense -> Dropout -> logits.
+    """Input -> Rescaling(1/255) -> Conv/Pool x4 -> Flatten -> Dense -> Dropout -> logits.
 
     The returned model's output is the raw ``logits`` layer (no activation):
     compile with ``BinaryCrossentropy(from_logits=True)``. Convert to
@@ -40,18 +40,17 @@ def build_baseline_cnn(input_shape: tuple[int, int, int] = (224, 224, 3), dropou
     inputs = layers.Input(shape=input_shape, name="image")
     x = layers.Rescaling(1.0 / 255.0, name="rescaling")(inputs)
 
+    x = layers.Conv2D(16, 3, activation="relu", padding="same")(x)
+    x = layers.MaxPooling2D()(x)
+
     x = layers.Conv2D(32, 3, activation="relu", padding="same")(x)
     x = layers.MaxPooling2D()(x)
 
     x = layers.Conv2D(64, 3, activation="relu", padding="same")(x)
     x = layers.MaxPooling2D()(x)
 
-    x = layers.Conv2D(128, 3, activation="relu", padding="same")(x)
+    x = layers.Conv2D(64, 3, activation="relu", padding="same")(x)
     x = layers.MaxPooling2D()(x)
-
-    # Extra downsampling (28x28 -> 7x7) so Flatten + Dense stays under the
-    # <1M parameter budget instead of blowing up to ~12.8M (see module docstring).
-    x = layers.MaxPooling2D(pool_size=4, name="pre_flatten_pool")(x)
 
     x = layers.Flatten()(x)
     x = layers.Dense(64, activation="relu")(x)
