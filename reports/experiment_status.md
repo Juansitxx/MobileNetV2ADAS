@@ -8,9 +8,10 @@ milestone definition.
 ## Environment
 
 - Python 3.11.9, Windows.
-- TensorFlow: **not installed locally** (`pip install tensorflow` per
-  `requirements.txt` to enable notebooks/model code).
-- GPU: not checked (requires TensorFlow); local target hardware per
+- TensorFlow: **installed locally as of 2026-09-22** (specifically to
+  verify the baseline CNN's parameter budget with real numbers instead of
+  hand math — see `docs/decisions_log.md`).
+- GPU: none locally (CPU-only TensorFlow); local target hardware per
   `CLAUDE.md` is an Intel i7 + RTX 4060, with initial training intended on
   Google Colab.
 - Run `python scripts/00_check_environment.py` for a live check.
@@ -40,12 +41,12 @@ downloaded automatically. See `docs/bdd100k_setup.md` for acquisition and
 | Dataset audit script + figures | DONE, unchanged logic, re-verified against the synthetic fixture's manifest |
 | Experimental subset builder + sampling plan | DONE, unchanged logic, re-verified against the synthetic fixture's manifest |
 | Dataset validation script | DONE, re-verified (0 issues) against the synthetic fixture's manifests |
-| Unit tests (ROI, frame labels, manifest, Supervisely parser) | DONE — **38/38 passing** (`python -m pytest -q`); added `tests/test_supervisely_parser.py` and per-category min-area-ratio tests |
-| Notebook 00 (dataset exploration) | DONE — regenerated 2026-09-22 for the Supervisely source, multi-label framing, and `min_bbox_area_ratio`; not executed (no real dataset present) |
-| Notebook 01 (baseline + MobileNetV2 + ResNet50 Teacher) | DONE — regenerated 2026-09-22 for multi-label targets and the ResNet50 Teacher smoke test; not executed (TensorFlow/data unavailable locally) |
-| Baseline CNN (`models/baseline.py`, Student 2) | DONE — reworked to output 2 logits (vehicle, pedestrian) with `BinaryCrossentropy(from_logits=True)`; implementation only, no training run |
-| MobileNetV2 Student (`models/mobilenetv2.py`, Student 1) | DONE — reworked to 2-logit output, simplified to `(model, base_model)` return; implementation only |
-| ResNet50 Teacher (`models/resnet50_teacher.py`) | DONE (new) — architecture only, matching 2-logit output space; not trained |
+| Unit tests (ROI, frame labels, manifest, Supervisely parser, baseline model) | DONE — **40/40 passing** (`python -m pytest -q`); includes 2 TensorFlow-backed tests (`test_baseline_model.py`, skipped automatically without TF) |
+| Notebook 00 (dataset exploration) | DONE — regenerated 2026-09-22 for the Supervisely source, multi-label framing, and the finalized ADAS ROI per-category thresholds; not executed (no real dataset present) |
+| Notebook 01 (baseline + MobileNetV2 + ResNet50 Teacher) | DONE — regenerated 2026-09-22 for multi-label targets, the ResNet50 Teacher smoke test, and the baseline parameter-budget assertion; not executed end-to-end (no real dataset present), but every model-construction cell has now been verified standalone with real TensorFlow |
+| Baseline CNN (`models/baseline.py`, Student 2) | DONE — outputs 2 logits with `BinaryCrossentropy(from_logits=True)`; **fixed 2026-09-22**: was ~12.94M params (~13x over the <1M budget) due to `Flatten` on an under-pooled 28x28x128 feature map — added an extra 4x4 pool + reduced Dense to 64 units; verified with real TensorFlow: **494,850 total params** |
+| MobileNetV2 Student (`models/mobilenetv2.py`, Student 1) | DONE — 2-logit output, `(model, base_model)` return; verified with real TensorFlow: 2,260,546 total params (2,562 trainable, frozen backbone), `(batch,2)` logits, no NaNs |
+| ResNet50 Teacher (`models/resnet50_teacher.py`) | DONE (new) — architecture only, matching 2-logit output space; verified with real TensorFlow: 23,591,810 total params (4,098 trainable, frozen backbone), `(batch,2)` logits, no NaNs; not trained |
 | Evaluation utilities (`evaluation/metrics.py`) | DONE — added `sigmoid`, `labels_from_logits`, `multilabel_binary_metrics`, `estimate_flops`; implementation only, not run against real predictions |
 | KD contracts/scaffolding | DONE — updated for the 2-logit Teacher/Student contract and the 5-way final comparison ladder; explicitly not implemented |
 | Academic documentation | DONE — updated across all affected docs for the real dataset format, split exclusion, multi-label reformulation, and new Teacher/Student roster |
@@ -78,19 +79,22 @@ data.
 
 ## Real metrics
 
-**Pending.** No model has been trained on real data in this environment
-(no TensorFlow installed, no real dataset present).
+**Pending.** No model has been trained on real data (only architecture
+construction, parameter counts, and forward-pass smoke tests on
+zero-tensors have been verified — see the pipeline table above). No
+training run yet, per instruction ("no hagas entrenamiento todavía").
 
 ## Blockers
 
-1. TensorFlow is not installed locally (`pip install tensorflow`).
-2. The real BDD100K Images 10K `.tar` is not present locally (see
-   `docs/bdd100k_setup.md`).
+1. The real BDD100K Images 10K `.tar` is not present locally (see
+   `docs/bdd100k_setup.md`) — the only remaining blocker to a real training
+   run.
 
 ## Manual user action required
 
-1. Install TensorFlow (`pip install tensorflow`, or run in Google Colab
-   which has it preinstalled).
+1. (Done locally 2026-09-22, still needed in Colab) Install TensorFlow
+   (`pip install tensorflow`, or run in Google Colab which has it
+   preinstalled).
 2. Download BDD100K Images 10K (DatasetNinja, Supervisely format) and place
    it at `data/raw/bdd100k/bdd100k_10k_supervisely.tar`, per
    `docs/bdd100k_setup.md`.

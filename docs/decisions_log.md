@@ -122,5 +122,40 @@ reference/audit only, not for training.
   `num_motorcycles` preserved as separate metadata for the dedicated
   motorcycle-subset evaluation slice.
 
+## 2026-09-22 — Concrete error found and fixed: baseline CNN was not lightweight
+
+While confirming the "CNN ligera" (baseline, Student 2) met the project's
+<~1M parameter budget, the actual architecture was verified (analytically,
+then with real TensorFlow) to have **~12.94M parameters — ~13x over
+budget.** Root cause: `Conv(32)/Conv(64)/Conv(128)` with 2x2 pooling only
+shrinks 224x224 input down to 28x28 before `Flatten`, producing a
+100,352-length vector; `Dense(128)` on top of that alone costs ~12.8M
+parameters.
+
+**Fix** (`src/neurodriver_cnn/models/baseline.py`): added one extra 4x4
+`MaxPooling2D` immediately before `Flatten` (28x28 -> 7x7), and reduced the
+post-Flatten `Dense` layer from 128 to 64 units. `Conv/Pool x3`, `Flatten`,
+`Dense`, `Dropout` are all still present as required. Verified with real
+TensorFlow (installed locally for this check):
+
+```
+Total params: 494,850 (all trainable)
+```
+
+Comfortably under the 1M budget. Also verified for the first time with
+real TensorFlow (previously only analyzed without TF installed):
+MobileNetV2 Student = 2,260,546 total params (2,562 trainable, frozen
+backbone); ResNet50 Teacher = 23,591,810 total params (4,098 trainable,
+frozen backbone). Both produce `(batch, 2)` logits with no NaNs on a
+zero-tensor smoke batch.
+
+**Secondary cleanup:** `count_parameters` was duplicated logic waiting to
+happen — moved from `models/mobilenetv2.py` to the shared
+`evaluation/metrics.py` (now used identically by baseline, MobileNetV2, and
+ResNet50 Teacher). Added `tests/test_baseline_model.py`
+(`pytest.importorskip("tensorflow")`) asserting the <1M budget and 2-logit
+output shape, so a future regression here fails a test instead of going
+unnoticed until Colab.
+
 Add a new dated entry for each subsequent material decision (class_weight
 adoption, fine-tuning layer count, KD alpha/T choice, etc.).

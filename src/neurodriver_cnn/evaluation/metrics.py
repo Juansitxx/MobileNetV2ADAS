@@ -137,6 +137,24 @@ def evaluate_motorcycle_subset(y_true, y_pred, has_motorcycle) -> dict[str, Any]
     return metrics
 
 
+def count_parameters(model) -> dict[str, int]:
+    """Total/trainable/non-trainable parameter counts for any Keras model.
+
+    Shared across the baseline CNN, MobileNetV2 Student, and ResNet50
+    Teacher (previously duplicated per-model; consolidated here 2026-09-22
+    while verifying the baseline's parameter budget).
+    """
+    import numpy as np
+
+    trainable = int(sum(np.prod(w.shape) for w in model.trainable_weights))
+    non_trainable = int(sum(np.prod(w.shape) for w in model.non_trainable_weights))
+    return {
+        "total_params": trainable + non_trainable,
+        "trainable_params": trainable,
+        "non_trainable_params": non_trainable,
+    }
+
+
 def model_size_bytes(saved_model_path) -> int:
     """Total size in bytes of a saved model file/directory."""
     from pathlib import Path

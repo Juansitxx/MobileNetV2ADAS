@@ -79,16 +79,3 @@ def compile_student(model, learning_rate: float = 1e-3):
         metrics=[tf.keras.metrics.BinaryAccuracy(name="binary_accuracy", threshold=0.0)],
     )
     return model
-
-
-def count_parameters(model) -> dict:
-    """Return total/trainable/non-trainable parameter counts."""
-    import numpy as np
-
-    trainable = int(sum(np.prod(w.shape) for w in model.trainable_weights))
-    non_trainable = int(sum(np.prod(w.shape) for w in model.non_trainable_weights))
-    return {
-        "total_params": trainable + non_trainable,
-        "trainable_params": trainable,
-        "non_trainable_params": non_trainable,
-    }
