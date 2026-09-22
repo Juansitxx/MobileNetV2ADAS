@@ -1,0 +1,31 @@
+{
+  "seed": 42,
+  "image_size": [224, 224],
+  "batch_size": 32,
+  "baseline": {
+    "epochs": 30,
+    "learning_rate": 0.001,
+    "dropout": 0.4
+  },
+  "mobilenetv2": {
+    "head_epochs": 20,
+    "head_learning_rate": 0.001,
+    "fine_tune_epochs": 15,
+    "fine_tune_learning_rate": 1e-5,
+    "dropout": 0.3,
+    "fine_tune_unfreeze_from_layer": null
+  },
+  "callbacks": {
+    "early_stopping_patience": 5,
+    "early_stopping_monitor": "val_loss",
+    "restore_best_weights": true,
+    "reduce_lr_patience": 3,
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_min_lr": 1e-7
+  },
+  "distillation": {
+    "enabled": false,
+    "alpha": null,
+    "temperature": null
+  }
+}

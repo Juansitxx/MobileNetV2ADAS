@@ -1,0 +1,43 @@
+# Data (raw/interim always excluded; processed manifests are small CSV/JSON and may be tracked selectively)
+data/raw/
+data/interim/
+*.zip
+*.tar
+*.tar.gz
+
+# Models / checkpoints
+*.h5
+*.keras
+*.pb
+*.ckpt
+*.weights
+checkpoints/
+saved_models/
+
+# Reports figures (regenerable, can be large)
+reports/figures/*.png
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Environments
+.venv/
+venv/
+env/
+.conda/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local secrets
+.env

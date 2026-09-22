@@ -1,0 +1,11 @@
+numpy
+pandas
+pillow
+matplotlib
+scikit-learn
+pytest
+
+# Heavy / optional locally — required to run notebooks and train models.
+# Not installed automatically for Phase 1 scaffolding (see docs/bdd100k_setup.md
+# and scripts/00_check_environment.py). Install with: pip install tensorflow
+tensorflow>=2.15
