@@ -91,14 +91,16 @@ def build_rows(extract_dir: Path, roi_config: ROIConfig) -> list[dict]:
                     "annotation_available": True,
                     "valid_sample": image_available,
                     # Common Manifest contract fields (see
-                    # docs/neurodriver_dataset_contract.md). Default label
-                    # strategy is Full Frame until docs/decisions_log.md
-                    # records a final choice. Models train on has_vehicle/
-                    # has_pedestrian directly (multi-label), not on `label`.
-                    "label": fullframe["label"],
-                    "has_vehicle": fullframe["has_vehicle"],
-                    "has_pedestrian": fullframe["has_pedestrian"],
-                    "has_motorcycle": fullframe["has_motorcycle"],
+                    # docs/neurodriver_dataset_contract.md). ADAS ROI is the
+                    # final, fixed labeling strategy for this experiment
+                    # (see docs/decisions_log.md, 2026-09-22); label_fullframe
+                    # above remains available for reference/audit only.
+                    # Models train on has_vehicle/has_pedestrian directly
+                    # (multi-label), not on `label`.
+                    "label": roi["label"],
+                    "has_vehicle": roi["has_vehicle"],
+                    "has_pedestrian": roi["has_pedestrian"],
+                    "has_motorcycle": roi["has_motorcycle"],
                     "split": "TRAIN" if raw_split == "train" else "TEST",
                 }
             )

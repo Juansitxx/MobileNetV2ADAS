@@ -34,13 +34,13 @@ downloaded automatically. See `docs/bdd100k_setup.md` for acquisition and
 | Supervisely parser (`data/bdd100k.py`) | DONE — rewritten 2026-09-22 for polygon/rectangle geometry (`polygon_to_bbox`); verified end-to-end against a synthetic Supervisely `.tar` fixture |
 | Schema inspection script | DONE — rewritten to read directly from the `.tar` (no extraction needed); verified against the synthetic fixture (confirmed empty `test` split, category/tag counts) |
 | ROI geometry (`labeling/roi.py`) | DONE, unit-tested |
-| Frame labeling (`labeling/frame_labels.py`) | DONE, unit-tested, including the new `min_bbox_area_ratio` filter (0.0005) |
+| Frame labeling (`labeling/frame_labels.py`) | DONE, unit-tested, including the final per-category `min_bbox_area_ratio` filter (car/truck/bus 0.01, motorcycle/pedestrian 0.0005) |
 | Common Manifest schema/validation (`data/manifest.py`) | DONE, unit-tested; now reuses `derive_label` (deduplicated from a second copy found during this update) |
-| Manifest builder script | DONE — rewritten to extract the `.tar` (idempotent) and build the manifest in one command; excludes the DatasetNinja `test` split; verified end-to-end against the synthetic fixture |
+| Manifest builder script | DONE — rewritten to extract the `.tar` (idempotent) and build the manifest in one command; excludes the DatasetNinja `test` split; Common Manifest fields now sourced from ADAS ROI (not Full Frame); verified end-to-end against synthetic fixtures |
 | Dataset audit script + figures | DONE, unchanged logic, re-verified against the synthetic fixture's manifest |
 | Experimental subset builder + sampling plan | DONE, unchanged logic, re-verified against the synthetic fixture's manifest |
 | Dataset validation script | DONE, re-verified (0 issues) against the synthetic fixture's manifests |
-| Unit tests (ROI, frame labels, manifest, Supervisely parser) | DONE — **36/36 passing** (`python -m pytest -q`); added `tests/test_supervisely_parser.py` and 2 new ROI min-area-ratio tests |
+| Unit tests (ROI, frame labels, manifest, Supervisely parser) | DONE — **38/38 passing** (`python -m pytest -q`); added `tests/test_supervisely_parser.py` and per-category min-area-ratio tests |
 | Notebook 00 (dataset exploration) | DONE — regenerated 2026-09-22 for the Supervisely source, multi-label framing, and `min_bbox_area_ratio`; not executed (no real dataset present) |
 | Notebook 01 (baseline + MobileNetV2 + ResNet50 Teacher) | DONE — regenerated 2026-09-22 for multi-label targets and the ResNet50 Teacher smoke test; not executed (TensorFlow/data unavailable locally) |
 | Baseline CNN (`models/baseline.py`, Student 2) | DONE — reworked to output 2 logits (vehicle, pedestrian) with `BinaryCrossentropy(from_logits=True)`; implementation only, no training run |
@@ -52,10 +52,13 @@ downloaded automatically. See `docs/bdd100k_setup.md` for acquisition and
 
 ## Full Frame vs ROI
 
-**Pending.** Both strategies are implemented and computed per-frame
-(ROI now also applying `min_bbox_area_ratio = 0.0005`), but no real
-distribution/example comparison has been run (requires the real dataset).
-See `docs/decisions_log.md`.
+**Decided (2026-09-22): ADAS ROI is the final, fixed labeling strategy.**
+Both strategies remain implemented and computed per-frame (Full Frame kept
+for reference/audit only), with ROI now using **per-category**
+`min_bbox_area_ratio` — car/truck/bus: 0.01, motorcycle/pedestrian: 0.0005
+— chosen specifically because 0.0005 retains 145 TRAIN / 27 VAL motorcycle
+frames with minimal effect on overall vehicle balance (real evidence),
+which matters for the future Colombian domain. See `docs/decisions_log.md`.
 
 ## Class / motorcycle distribution
 

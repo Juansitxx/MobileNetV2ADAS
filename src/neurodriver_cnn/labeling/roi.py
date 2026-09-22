@@ -7,7 +7,27 @@ functions here are pure (no I/O) so they are cheap to unit test.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+# Final experiment thresholds (fixed 2026-09-22, see docs/decisions_log.md):
+# car/truck/bus need a larger real-world footprint to count as ADAS-relevant,
+# while motorcycle/pedestrian use a much smaller threshold so small-but-real
+# detections are kept — motorcycle in particular, since real counts showed
+# 0.0005 retains 145 TRAIN / 27 VAL motorcycle frames with minimal effect on
+# overall vehicle balance, which matters for the future Colombian domain
+# (higher motorcycle density than BDD100K/US driving).
+DEFAULT_MIN_BBOX_AREA_RATIO_BY_CATEGORY = {
+    "car": 0.01,
+    "truck": 0.01,
+    "bus": 0.01,
+    "motorcycle": 0.0005,
+    "pedestrian": 0.0005,
+}
+# Fallback for categories with no explicit threshold above (rider, bicycle):
+# not specified by the professor/experiment decision — defaulted to the
+# same small threshold as motorcycle/pedestrian since these are similarly
+# small objects. Revisit if evidence suggests otherwise.
+DEFAULT_MIN_BBOX_AREA_RATIO_FALLBACK = 0.0005
 
 
 @dataclass(frozen=True)
@@ -17,7 +37,13 @@ class ROIConfig:
     y_min: float = 0.35
     y_max: float = 1.00
     bbox_intersection_threshold: float = 0.35
-    min_bbox_area_ratio: float = 0.0
+    min_bbox_area_ratio_by_category: dict[str, float] = field(
+        default_factory=lambda: dict(DEFAULT_MIN_BBOX_AREA_RATIO_BY_CATEGORY)
+    )
+    default_min_bbox_area_ratio: float = DEFAULT_MIN_BBOX_AREA_RATIO_FALLBACK
+
+    def min_area_ratio_for(self, category: str) -> float:
+        return self.min_bbox_area_ratio_by_category.get(category, self.default_min_bbox_area_ratio)
 
     @classmethod
     def from_dict(cls, d: dict) -> "ROIConfig":
@@ -27,7 +53,12 @@ class ROIConfig:
             y_min=d.get("y_min", 0.35),
             y_max=d.get("y_max", 1.00),
             bbox_intersection_threshold=d.get("bbox_intersection_threshold", 0.35),
-            min_bbox_area_ratio=d.get("min_bbox_area_ratio", 0.0),
+            min_bbox_area_ratio_by_category=d.get(
+                "min_bbox_area_ratio_by_category", dict(DEFAULT_MIN_BBOX_AREA_RATIO_BY_CATEGORY)
+            ),
+            default_min_bbox_area_ratio=d.get(
+                "default_min_bbox_area_ratio", DEFAULT_MIN_BBOX_AREA_RATIO_FALLBACK
+            ),
         )
 
 

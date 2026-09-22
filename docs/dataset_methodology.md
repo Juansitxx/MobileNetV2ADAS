@@ -60,18 +60,37 @@ real annotation archive before manifest generation, and
 `reports/schema_analysis.md` records
 what was actually found.
 
-## Two labeling strategies
+## Labeling strategy: ADAS ROI (final, fixed 2026-09-22)
 
-**Full Frame** — any mapped object anywhere in the image counts.
-**ADAS ROI** — only objects relevant to a configurable forward-driving
-corridor count, additionally excluding objects smaller than
-`roi.min_bbox_area_ratio` (0.0005, set from visual review — see
-`docs/decisions_log.md`, 2026-09-22) as likely noise (see
-`configs/dataset_config.json` → `roi`).
+**Full Frame** — any mapped object anywhere in the image counts. Still
+computed and stored (`label_fullframe` and its counts/flags) for
+reference/audit, but no longer used to build the Common Manifest's training
+fields.
 
-Both are implemented and both are computed for every frame in the manifest
-so they can be compared with real statistics (`reports/dataset_audit.md`)
-before a permanent strategy is chosen (`docs/decisions_log.md`).
+**ADAS ROI — the strategy actually used for training** (see
+`docs/decisions_log.md`, 2026-09-22): only objects relevant to the forward
+driving corridor count, additionally excluding objects smaller than a
+**per-category** minimum bbox-area ratio (`configs/dataset_config.json` →
+`roi.min_bbox_area_ratio_by_category`):
+
+| Category | min_bbox_area_ratio |
+|---|---|
+| car, truck, bus | 0.01 |
+| motorcycle | 0.0005 |
+| pedestrian | 0.0005 |
+| rider, bicycle (fallback default) | 0.0005 |
+
+`motorcycle=0.0005` was chosen because it retains 145 TRAIN / 27 VAL
+motorcycle-containing frames with minimal effect on overall vehicle
+balance — important for the future Colombian domain, where motorcycle
+density is expected to be materially higher than in BDD100K.
+`car`/`truck`/`bus` use a larger 0.01 threshold since their real-world
+footprint is much bigger, making a smaller detection more likely to be
+noise. Both are implemented in
+`neurodriver_cnn.labeling.frame_labels.classify_fullframe`/`classify_roi`
+and computed for every frame; only the ROI columns feed
+`label`/`has_vehicle`/`has_pedestrian`/`has_motorcycle` in the Common
+Manifest.
 
 ## Common Manifest
 

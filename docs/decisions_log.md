@@ -84,6 +84,43 @@ assumptions built for the official 100k `box2d` release.
   architectures share the two-logit output space so a future KD loss needs
   no adapter layer.
 
-Add a new dated entry for each subsequent material decision (label strategy
-finalization, class_weight adoption, fine-tuning layer count, KD alpha/T
-choice, etc.).
+## 2026-09-22 — Labeling strategy finalized: ADAS ROI with per-category area thresholds
+
+The Full Frame vs ADAS ROI comparison is closed for this experiment: **ADAS
+ROI is the final, fixed frame-labeling strategy.** `scripts/02_build_manifest.py`
+now writes the Common Manifest's `label`/`has_vehicle`/`has_pedestrian`/
+`has_motorcycle` fields from the ROI classification (previously Full
+Frame); `label_fullframe` and its counts/flags remain in the manifest for
+reference/audit only, not for training.
+
+- **ROI geometry unchanged:** `x_min=0.20, x_max=0.80, y_min=0.35,
+  y_max=1.00`, `bbox_intersection_threshold=0.35`.
+- **`min_bbox_area_ratio` is now per-category, not a single global value:**
+  - `car`, `truck`, `bus`: `0.01`
+  - `motorcycle`: `0.0005`
+  - `pedestrian`: `0.0005`
+  - `rider`, `bicycle` (not explicitly specified): fall back to `0.0005`
+    (`ROIConfig.default_min_bbox_area_ratio`) as a conservative default,
+    since these are similarly small objects to motorcycle/pedestrian — this
+    is an engineering default, not a measured decision; revisit if evidence
+    suggests otherwise.
+- **Rationale for `motorcycle=0.0005`:** real analysis showed this
+  threshold retains 145 motorcycle-containing frames in TRAIN and 27 in
+  VAL, with minimal effect on the overall vehicle-class balance. This
+  matters specifically because the eventual target domain is Colombian
+  driving, where motorcycle density is expected to be materially higher
+  than in BDD100K/US driving — under-representing motorcycles now would
+  work against that future adaptation. `car`/`truck`/`bus` keep the larger
+  `0.01` threshold because their real-world footprint is much bigger, so a
+  detection that small is more likely to be noise/occlusion than a genuine
+  distant vehicle.
+- **Multi-label training target unchanged:** two independent binary
+  targets, `has_vehicle` and `has_pedestrian`, still derive the four ADAS
+  states as `(0,0)=CLEAR, (1,0)=VEHICLE, (0,1)=PEDESTRIAN, (1,1)=MIXED` via
+  `neurodriver_cnn.labeling.frame_labels.derive_label`. Motorcycle stays
+  folded into `has_vehicle`/VEHICLE, with `has_motorcycle`/
+  `num_motorcycles` preserved as separate metadata for the dedicated
+  motorcycle-subset evaluation slice.
+
+Add a new dated entry for each subsequent material decision (class_weight
+adoption, fine-tuning layer count, KD alpha/T choice, etc.).

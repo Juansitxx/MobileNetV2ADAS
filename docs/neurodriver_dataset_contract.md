@@ -13,8 +13,8 @@ schema so notebooks/training code require no changes.
 | `label` | str | One of `CLEAR`, `VEHICLE`, `PEDESTRIAN`, `MIXED`. |
 | `split` | str | One of `TRAIN`, `VALIDATION`, `TEST`. |
 | `source_dataset` | str | e.g. `BDD100K`, `NEURODRIVER_COLOMBIA`. |
-| `has_vehicle` | bool | Derived from the chosen labeling strategy. **Also the first of the two training targets** (see "Multi-label training" below). |
-| `has_pedestrian` | bool | Derived from the chosen labeling strategy. **Also the second training target.** |
+| `has_vehicle` | bool | Derived from ADAS ROI (the final labeling strategy, fixed 2026-09-22). **Also the first of the two training targets** (see "Multi-label training" below). |
+| `has_pedestrian` | bool | Derived from ADAS ROI. **Also the second training target.** |
 | `has_motorcycle` | bool | Explicit even though motorcycle folds into VEHICLE. |
 
 Validated by `neurodriver_cnn.data.manifest.validate_manifest_invariants`.
@@ -50,9 +50,12 @@ evaluation time from thresholded predictions
 `scripts/02_build_manifest.py` also writes BDD100K-specific columns
 (`label_fullframe`, `label_roi`, per-strategy counts/flags, `raw_split`
 (the DatasetNinja `train`/`val` split name — `test` is never loaded),
-`image_available`, `annotation_available`, `valid_sample`) so both labeling
-strategies remain comparable. Common-contract training code should only
-read the required/optional fields above, not these adapter-specific ones.
+`image_available`, `annotation_available`, `valid_sample`) so Full Frame
+remains available for reference/audit even though ADAS ROI is the fixed
+training strategy (`label_roi` values are what `label`/`has_vehicle`/
+`has_pedestrian`/`has_motorcycle` above are copied from). Common-contract
+training code should only read the required/optional fields above, not
+these adapter-specific ones.
 
 ## Future Knowledge Distillation fields (optional, not populated yet)
 

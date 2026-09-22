@@ -73,15 +73,18 @@ def classify_roi(
 ) -> dict:
     """ADAS ROI strategy: only objects relevant to the configured ROI count.
 
-    Objects smaller than ``roi_config.min_bbox_area_ratio`` (fraction of
-    image area) are excluded before the ROI-relevance test, as tiny/distant
-    detections in this dataset were found by visual review to be mostly
-    noise (see docs/decisions_log.md, 2026-09-22).
+    Objects smaller than a per-category minimum bbox-area-ratio
+    (``roi_config.min_area_ratio_for(category)``) are excluded before the
+    ROI-relevance test: car/truck/bus need a larger footprint (0.01) than
+    motorcycle/pedestrian (0.0005), which are kept smaller specifically to
+    preserve motorcycle representation for the future Colombian domain (see
+    docs/decisions_log.md, 2026-09-22 — this is the final, fixed labeling
+    strategy for the experiment).
     """
     roi_config = roi_config or ROIConfig()
     roi_box = roi_pixel_box(roi_config, image_width, image_height)
 
-    sized = [b for b in boxes if b.bbox_area_ratio >= roi_config.min_bbox_area_ratio]
+    sized = [b for b in boxes if b.bbox_area_ratio >= roi_config.min_area_ratio_for(b.category)]
     relevant = [
         b
         for b in sized
@@ -96,5 +99,6 @@ def classify_roi(
         "y_min": roi_config.y_min,
         "y_max": roi_config.y_max,
         "bbox_intersection_threshold": roi_config.bbox_intersection_threshold,
+        "min_bbox_area_ratio_by_category": dict(roi_config.min_bbox_area_ratio_by_category),
     }
     return result

@@ -92,7 +92,7 @@ def test_roi_config_is_echoed_in_result():
 
 
 def test_roi_excludes_object_below_min_bbox_area_ratio():
-    roi = ROIConfig(min_bbox_area_ratio=0.01)  # 1% of image area
+    roi = ROIConfig(min_bbox_area_ratio_by_category={"pedestrian": 0.01})
     # Tiny box well inside the ROI: area = 5x5 = 25 -> ratio 0.000025, below threshold.
     tiny_box = [make_box("pedestrian", 500, 500, 505, 505)]
     result = classify_roi(tiny_box, W, H, roi)
@@ -101,8 +101,33 @@ def test_roi_excludes_object_below_min_bbox_area_ratio():
 
 
 def test_roi_keeps_object_at_or_above_min_bbox_area_ratio():
-    roi = ROIConfig(min_bbox_area_ratio=0.01)
+    roi = ROIConfig(min_bbox_area_ratio_by_category={"pedestrian": 0.01})
     # 150x150 box = 22500 area -> ratio 0.0225, above threshold, inside ROI.
     big_box = [make_box("pedestrian", 450, 450, 600, 600)]
     result = classify_roi(big_box, W, H, roi)
     assert result["label"] == "PEDESTRIAN"
+
+
+def test_roi_default_thresholds_treat_motorcycle_more_leniently_than_car():
+    # Fixed 2026-09-22 experiment thresholds: car/truck/bus = 0.01,
+    # motorcycle/pedestrian = 0.0005 (see docs/decisions_log.md).
+    roi = ROIConfig()  # defaults
+    # Same small box (30x30 = 900 -> ratio 0.0009 on a 1000x1000 image):
+    # above the motorcycle threshold (0.0005), below the car threshold (0.01).
+    small_car = [make_box("car", 500, 500, 530, 530)]
+    small_motorcycle = [make_box("motorcycle", 500, 500, 530, 530)]
+
+    car_result = classify_roi(small_car, W, H, roi)
+    moto_result = classify_roi(small_motorcycle, W, H, roi)
+
+    assert car_result["label"] == "CLEAR"
+    assert moto_result["label"] == "VEHICLE"
+    assert moto_result["has_motorcycle"] is True
+
+
+def test_roi_min_area_ratio_falls_back_for_unlisted_categories():
+    roi = ROIConfig()
+    assert roi.min_area_ratio_for("rider") == roi.default_min_bbox_area_ratio
+    assert roi.min_area_ratio_for("bicycle") == roi.default_min_bbox_area_ratio
+    assert roi.min_area_ratio_for("car") == 0.01
+    assert roi.min_area_ratio_for("motorcycle") == 0.0005

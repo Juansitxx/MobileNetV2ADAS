@@ -17,13 +17,23 @@
     "pedestrian": ["pedestrian"],
     "auxiliary": ["rider", "bicycle"]
   },
+  "labeling_strategy": "ADAS_ROI",
+  "labeling_strategy_note": "Fixed 2026-09-22 as the final labeling strategy for this experiment (see docs/decisions_log.md). Full Frame labels/counts remain in the manifest for reference/audit only; the Common Manifest label/has_vehicle/has_pedestrian/has_motorcycle fields mirror ADAS ROI.",
   "roi": {
     "x_min": 0.20,
     "x_max": 0.80,
     "y_min": 0.35,
     "y_max": 1.00,
     "bbox_intersection_threshold": 0.35,
-    "min_bbox_area_ratio": 0.0005
+    "min_bbox_area_ratio_by_category": {
+      "car": 0.01,
+      "truck": 0.01,
+      "bus": 0.01,
+      "motorcycle": 0.0005,
+      "pedestrian": 0.0005
+    },
+    "default_min_bbox_area_ratio": 0.0005,
+    "min_bbox_area_ratio_note": "Fixed 2026-09-22 (see docs/decisions_log.md). car/truck/bus use a larger footprint (0.01) than motorcycle/pedestrian (0.0005); motorcycle=0.0005 specifically retains 145 TRAIN / 27 VAL motorcycle frames with minimal effect on overall vehicle balance, which matters for the future Colombian domain. rider/bicycle (not explicitly specified) fall back to default_min_bbox_area_ratio."
   },
   "experiment_subset": {
     "target_size_min": 4000,
