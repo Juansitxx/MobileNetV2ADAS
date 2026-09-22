@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from neurodriver_cnn.labeling.frame_labels import derive_label
+
 REQUIRED_COMMON_FIELDS = [
     "image_path",
     "label",
@@ -51,7 +53,7 @@ def validate_manifest_invariants(df: pd.DataFrame) -> list[str]:
         violations.append(f"Invalid split values found: {sorted(bad_splits)}")
 
     expected_label = df.apply(
-        lambda r: _expected_label(bool(r["has_vehicle"]), bool(r["has_pedestrian"])), axis=1
+        lambda r: derive_label(bool(r["has_vehicle"]), bool(r["has_pedestrian"])), axis=1
     )
     mismatched = df[df["label"] != expected_label]
     if len(mismatched) > 0:
@@ -70,16 +72,6 @@ def validate_manifest_invariants(df: pd.DataFrame) -> list[str]:
         violations.append(f"{dup_paths['image_path'].nunique()} duplicate image_path value(s) found")
 
     return violations
-
-
-def _expected_label(has_vehicle: bool, has_pedestrian: bool) -> str:
-    if has_vehicle and has_pedestrian:
-        return "MIXED"
-    if has_vehicle:
-        return "VEHICLE"
-    if has_pedestrian:
-        return "PEDESTRIAN"
-    return "CLEAR"
 
 
 def group_aware_split(

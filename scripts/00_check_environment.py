@@ -13,14 +13,8 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BDD_IMAGE_DIRS = [
-    PROJECT_ROOT / "data" / "raw" / "bdd100k" / "images" / "100k" / "train",
-    PROJECT_ROOT / "data" / "raw" / "bdd100k" / "images" / "100k" / "val",
-]
-BDD_LABEL_FILES = [
-    PROJECT_ROOT / "data" / "raw" / "bdd100k" / "labels" / "bdd100k_labels_images_train.json",
-    PROJECT_ROOT / "data" / "raw" / "bdd100k" / "labels" / "bdd100k_labels_images_val.json",
-]
+RAW_TAR_PATH = PROJECT_ROOT / "data" / "raw" / "bdd100k" / "bdd100k_10k_supervisely.tar"
+EXTRACT_DIR = PROJECT_ROOT / "data" / "raw" / "bdd100k" / "extracted"
 
 
 def _line(status: str, message: str) -> None:
@@ -70,27 +64,20 @@ def check_gpu(tf_available: bool) -> None:
         _line("WARNING", "No GPU visible to TensorFlow. CPU-only training will be slow.")
 
 
-def check_bdd_images() -> bool:
-    found = [d for d in BDD_IMAGE_DIRS if d.exists() and any(d.iterdir())]
-    if found:
-        _line("OK", f"BDD100K image directories found: {[str(d) for d in found]}")
+def check_bdd_data() -> bool:
+    if EXTRACT_DIR.exists() and any(EXTRACT_DIR.rglob("ann")):
+        _line("OK", f"BDD100K (extracted, Supervisely format) found under {EXTRACT_DIR}")
+        return True
+    if RAW_TAR_PATH.exists():
+        _line(
+            "OK",
+            f"BDD100K Supervisely archive found: {RAW_TAR_PATH} "
+            "(not extracted yet — scripts/02_build_manifest.py extracts it automatically).",
+        )
         return True
     _line(
         "MISSING",
-        "BDD100K images not found under data/raw/bdd100k/images/100k/{train,val}. "
-        "See docs/bdd100k_setup.md for the official download.",
-    )
-    return False
-
-
-def check_bdd_annotations() -> bool:
-    found = [f for f in BDD_LABEL_FILES if f.exists()]
-    if found:
-        _line("OK", f"BDD100K annotation file(s) found: {[str(f) for f in found]}")
-        return True
-    _line(
-        "MISSING",
-        "BDD100K object-detection label JSON files not found under data/raw/bdd100k/labels/. "
+        f"BDD100K Supervisely archive not found at {RAW_TAR_PATH}. "
         "See docs/bdd100k_setup.md for the official download.",
     )
     return False
@@ -103,8 +90,7 @@ def main() -> None:
     check_free_disk()
     tf_available = check_tensorflow()
     check_gpu(tf_available)
-    check_bdd_images()
-    check_bdd_annotations()
+    check_bdd_data()
     print("=== Done ===")
 
 

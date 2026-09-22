@@ -28,12 +28,19 @@ phases — see `reports/experiment_status.md` for exact current status.
 
 ## Classification task
 
-Four classes, frame-level (not object detection):
+Four ADAS states, frame-level (not object detection):
 
 - `CLEAR = 0` — no relevant vehicle and no relevant pedestrian
 - `VEHICLE = 1` — >=1 relevant vehicle, no relevant pedestrian
 - `PEDESTRIAN = 2` — >=1 relevant pedestrian, no relevant vehicle
 - `MIXED = 3` — >=1 relevant vehicle and >=1 relevant pedestrian
+
+**Trained as multi-label, not 4-class softmax:** real data showed severe
+imbalance for pure `PEDESTRIAN` frames, so models predict two independent
+binary targets (`has_vehicle`, `has_pedestrian`, i.e. `vehicle_logit` /
+`pedestrian_logit` with `BinaryCrossentropy(from_logits=True)`), and the
+four states above are derived post-hoc from thresholded probabilities for
+metrics/reporting. See `docs/decisions_log.md` (2026-09-22).
 
 Motorcycles count as `VEHICLE` but remain explicitly tracked via
 `has_motorcycle`/`num_motorcycles` for a dedicated evaluation slice.
@@ -45,13 +52,14 @@ pip install -r requirements.txt
 python scripts/00_check_environment.py
 ```
 
-BDD100K is **not bundled** with this repository. See
-`docs/bdd100k_setup.md` for the official download and expected placement
-under `data/raw/bdd100k/`. Once placed:
+BDD100K Images 10K (DatasetNinja, Supervisely format `.tar`) is **not
+bundled** with this repository. See `docs/bdd100k_setup.md` for acquisition
+and expected placement at
+`data/raw/bdd100k/bdd100k_10k_supervisely.tar`. Once placed:
 
 ```bash
-python scripts/01_inspect_bdd100k.py
-python scripts/02_build_manifest.py
+python scripts/01_inspect_bdd100k.py       # reads the .tar directly, no extraction needed
+python scripts/02_build_manifest.py        # extracts (once) + builds the manifest, one command
 python scripts/03_analyze_manifest.py
 python scripts/04_build_experiment_subset.py
 python scripts/05_validate_dataset.py

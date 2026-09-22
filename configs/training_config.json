@@ -2,6 +2,11 @@
   "seed": 42,
   "image_size": [224, 224],
   "batch_size": 32,
+  "output_targets": ["vehicle_logit", "pedestrian_logit"],
+  "loss": "BinaryCrossentropy(from_logits=True)",
+  "evaluation": {
+    "label_threshold": 0.5
+  },
   "baseline": {
     "epochs": 30,
     "learning_rate": 0.001,
@@ -15,6 +20,15 @@
     "dropout": 0.3,
     "fine_tune_unfreeze_from_layer": null
   },
+  "resnet50_teacher": {
+    "head_epochs": 20,
+    "head_learning_rate": 0.001,
+    "fine_tune_epochs": 15,
+    "fine_tune_learning_rate": 1e-5,
+    "dropout": 0.3,
+    "fine_tune_unfreeze_from_layer": null,
+    "note": "Future Teacher, not trained in this phase. Architecture only, kept compatible with the two Students for KD (see docs/teacher_student_contract.md)."
+  },
   "callbacks": {
     "early_stopping_patience": 5,
     "early_stopping_monitor": "val_loss",
@@ -26,6 +40,7 @@
   "distillation": {
     "enabled": false,
     "alpha": null,
-    "temperature": null
+    "temperature": null,
+    "note": "Teacher and both Students emit two logits (vehicle_logit, pedestrian_logit); KD loss (when implemented) is computed per-target, not over a 4-way softmax."
   }
 }

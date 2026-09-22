@@ -1,6 +1,7 @@
 {
   "seed": 42,
-  "source_dataset": "BDD100K",
+  "source_dataset": "BDD100K_Images_10K_DatasetNinja",
+  "raw_annotation_format": "supervisely",
   "target_domain": "NeuroDriver_Colombia",
   "image_size": [224, 224],
   "classes": {
@@ -9,6 +10,8 @@
     "PEDESTRIAN": 2,
     "MIXED": 3
   },
+  "classification_mode": "multilabel_vehicle_pedestrian",
+  "classification_note": "Models predict two independent binary targets (has_vehicle, has_pedestrian) instead of 4-class softmax, to avoid collapsing the minority PEDESTRIAN class. The four ADAS states above are derived post-hoc for metrics/reporting (see docs/decisions_log.md, 2026-09-22).",
   "category_mapping": {
     "vehicle": ["car", "truck", "bus", "motorcycle"],
     "pedestrian": ["pedestrian"],
@@ -20,7 +23,7 @@
     "y_min": 0.35,
     "y_max": 1.00,
     "bbox_intersection_threshold": 0.35,
-    "min_bbox_area_ratio": 0.0
+    "min_bbox_area_ratio": 0.0005
   },
   "experiment_subset": {
     "target_size_min": 4000,
@@ -28,7 +31,10 @@
     "target_size_preferred": 8000
   },
   "splits": {
-    "strategy": "official_train_to_train_val__official_val_to_test",
-    "train_val_split_ratio": 0.85
+    "strategy": "raw_train_to_train_val__raw_val_to_test",
+    "train_val_split_ratio": 0.85,
+    "excluded_raw_splits": {
+      "test": "DatasetNinja 'test' split has zero annotated objects in all 2000 records (real inspection); no usable ground truth, excluded from all supervised evaluation."
+    }
   }
 }

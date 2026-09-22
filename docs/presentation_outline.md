@@ -12,15 +12,18 @@
    provisional source domain, NeuroDriver Colombia dashcam data as the
    eventual target domain, and the planned adaptation path
    (`docs/colombian_domain_strategy.md`).
-5. **Four classes + explicit motorcycle tracking** — CLEAR/VEHICLE/
-   PEDESTRIAN/MIXED definitions, category mapping, and why motorcycles stay
-   inside VEHICLE while remaining separately trackable.
-6. **CNN baseline** — the intentionally simple reference architecture and
-   why it exists (normalization, Flatten, Dropout, EarlyStopping,
-   ReduceLROnPlateau — see `docs/recommendations_applied.md`).
-7. **MobileNetV2 transfer learning + future NeuroDriver KD** — the Student
-   architecture, exposed logits, and the planned (not yet implemented)
-   Teacher-Student distillation.
+5. **Four classes + explicit motorcycle tracking, trained as multi-label** —
+   CLEAR/VEHICLE/PEDESTRIAN/MIXED definitions derived from two independent
+   binary targets (has_vehicle, has_pedestrian) rather than 4-class
+   softmax, adopted after real data showed severe PEDESTRIAN imbalance; why
+   motorcycles stay inside VEHICLE while remaining separately trackable.
+6. **CNN baseline (Student 2)** — the intentionally simple reference
+   architecture and why it exists (normalization, Flatten, Dropout,
+   EarlyStopping, ReduceLROnPlateau — see `docs/recommendations_applied.md`).
+7. **MobileNetV2 (Student 1) + ResNet50 (future Teacher) + KD** — both
+   Students and the Teacher share a two-logit (vehicle, pedestrian) output
+   space, and the planned (not yet implemented) Teacher-Student
+   distillation across both Students.
 8. **Current progress and next steps** — honest status
    (`reports/experiment_status.md`), what is Pending, and the recommended
    next action.

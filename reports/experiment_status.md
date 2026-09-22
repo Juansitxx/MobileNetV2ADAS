@@ -1,8 +1,9 @@
 # Experiment status
 
-Generated as part of the Phase 1 milestone. This file reports real,
-observed status only — see `docs/decisions_log.md` for dated decisions and
-`PHASE_1.md` for the milestone definition.
+Generated as part of the Phase 1 milestone, updated 2026-09-22 after real
+dataset evidence arrived. This file reports real, observed status only —
+see `docs/decisions_log.md` for dated decisions and `PHASE_1.md` for the
+milestone definition.
 
 ## Environment
 
@@ -14,80 +15,90 @@ observed status only — see `docs/decisions_log.md` for dated decisions and
   Google Colab.
 - Run `python scripts/00_check_environment.py` for a live check.
 
-## BDD100K data
+## Dataset availability
 
-**Not present in this repository.** No unofficial mirror was used and no
-large archive was downloaded automatically, per `CLAUDE.md`/`PHASE_1.md`.
-See `docs/bdd100k_setup.md` for the official download and expected
-placement.
+**Not present in this repository.** The real, confirmed source is
+**BDD100K Images 10K** (DatasetNinja, Supervisely `.tar` format) — not the
+official BDD100K 100k `box2d` release originally assumed in the first
+Phase 1 pass. No unofficial mirror was used and no large archive was
+downloaded automatically. See `docs/bdd100k_setup.md` for acquisition and
+`docs/decisions_log.md` (2026-09-22) for the format-change rationale.
 
 ## Pipeline implementation status
 
 | Component | Status |
 |---|---|
 | Repository structure / configs | DONE |
-| BDD100K setup documentation | DONE |
-| Environment checker | DONE (verified: reports MISSING correctly for TensorFlow/BDD100K) |
-| BDD100K parser (`data/bdd100k.py`) | DONE (schema assumptions documented; to be reconfirmed by `scripts/01_inspect_bdd100k.py` against real data) |
-| Schema inspection script | DONE (verified: reports MISSING and writes a pending `reports/schema_analysis.md` correctly) |
+| BDD100K setup documentation | DONE (rewritten 2026-09-22 for the real Supervisely `.tar` source) |
+| Environment checker | DONE (verified: reports MISSING correctly for TensorFlow/dataset archive) |
+| Supervisely parser (`data/bdd100k.py`) | DONE — rewritten 2026-09-22 for polygon/rectangle geometry (`polygon_to_bbox`); verified end-to-end against a synthetic Supervisely `.tar` fixture |
+| Schema inspection script | DONE — rewritten to read directly from the `.tar` (no extraction needed); verified against the synthetic fixture (confirmed empty `test` split, category/tag counts) |
 | ROI geometry (`labeling/roi.py`) | DONE, unit-tested |
-| Frame labeling (`labeling/frame_labels.py`) | DONE, unit-tested |
-| Common Manifest schema/validation (`data/manifest.py`) | DONE, unit-tested |
-| Manifest builder script | DONE (verified: reports MISSING correctly; logic exercised with a synthetic non-committed fixture) |
-| Dataset audit script + figures | DONE (verified: pending-report path and full audit/figures path both exercised with a synthetic non-committed fixture) |
-| Experimental subset builder + sampling plan | DONE (verified: pending path and sampling logic both exercised with a synthetic non-committed fixture; pandas 3.0 `groupby.apply` column-drop issue found and fixed) |
-| Dataset validation script | DONE (verified against real file-existence and manifest-invariant checks) |
-| Unit tests (ROI, frame labels, manifest) | DONE — **28/28 passing** (`python -m pytest -q`) |
-| Notebook 00 (dataset exploration) | DONE (scaffolded with all required academic sections; not executed, since no real BDD100K data is present) |
-| Notebook 01 (baseline + MobileNetV2) | DONE (scaffolded with all required sections, DONE/PENDING status cells; not executed, since TensorFlow/data are unavailable locally) |
-| Baseline CNN (`models/baseline.py`) | DONE (implementation only — no training run, no TensorFlow locally) |
-| MobileNetV2 Student (`models/mobilenetv2.py`) | DONE (implementation only, logits exposed for future KD — no forward pass run, no TensorFlow locally) |
-| Evaluation utilities (`evaluation/metrics.py`) | DONE (implementation only — not run against real predictions yet) |
-| KD contracts/scaffolding | DONE (documentation + `distillation/` package placeholder; explicitly not implemented) |
-| Academic documentation | DONE (this file plus all files listed in `PHASE_1.md` Section "Academic documentation") |
+| Frame labeling (`labeling/frame_labels.py`) | DONE, unit-tested, including the new `min_bbox_area_ratio` filter (0.0005) |
+| Common Manifest schema/validation (`data/manifest.py`) | DONE, unit-tested; now reuses `derive_label` (deduplicated from a second copy found during this update) |
+| Manifest builder script | DONE — rewritten to extract the `.tar` (idempotent) and build the manifest in one command; excludes the DatasetNinja `test` split; verified end-to-end against the synthetic fixture |
+| Dataset audit script + figures | DONE, unchanged logic, re-verified against the synthetic fixture's manifest |
+| Experimental subset builder + sampling plan | DONE, unchanged logic, re-verified against the synthetic fixture's manifest |
+| Dataset validation script | DONE, re-verified (0 issues) against the synthetic fixture's manifests |
+| Unit tests (ROI, frame labels, manifest, Supervisely parser) | DONE — **36/36 passing** (`python -m pytest -q`); added `tests/test_supervisely_parser.py` and 2 new ROI min-area-ratio tests |
+| Notebook 00 (dataset exploration) | DONE — regenerated 2026-09-22 for the Supervisely source, multi-label framing, and `min_bbox_area_ratio`; not executed (no real dataset present) |
+| Notebook 01 (baseline + MobileNetV2 + ResNet50 Teacher) | DONE — regenerated 2026-09-22 for multi-label targets and the ResNet50 Teacher smoke test; not executed (TensorFlow/data unavailable locally) |
+| Baseline CNN (`models/baseline.py`, Student 2) | DONE — reworked to output 2 logits (vehicle, pedestrian) with `BinaryCrossentropy(from_logits=True)`; implementation only, no training run |
+| MobileNetV2 Student (`models/mobilenetv2.py`, Student 1) | DONE — reworked to 2-logit output, simplified to `(model, base_model)` return; implementation only |
+| ResNet50 Teacher (`models/resnet50_teacher.py`) | DONE (new) — architecture only, matching 2-logit output space; not trained |
+| Evaluation utilities (`evaluation/metrics.py`) | DONE — added `sigmoid`, `labels_from_logits`, `multilabel_binary_metrics`, `estimate_flops`; implementation only, not run against real predictions |
+| KD contracts/scaffolding | DONE — updated for the 2-logit Teacher/Student contract and the 5-way final comparison ladder; explicitly not implemented |
+| Academic documentation | DONE — updated across all affected docs for the real dataset format, split exclusion, multi-label reformulation, and new Teacher/Student roster |
 
 ## Full Frame vs ROI
 
-**Pending.** Both strategies are implemented and computed per-frame, but no
-real distribution/example comparison has been run (requires BDD100K data).
+**Pending.** Both strategies are implemented and computed per-frame
+(ROI now also applying `min_bbox_area_ratio = 0.0005`), but no real
+distribution/example comparison has been run (requires the real dataset).
 See `docs/decisions_log.md`.
 
 ## Class / motorcycle distribution
 
-**Pending real data.** No fabricated numbers are reported here.
+**Pending real data.** No fabricated numbers are reported here. Known real
+counts so far are limited to record-level JSON stats from
+`docs/bdd100k_setup.md` (train 7000/6891 with objects, val 1000/981, test
+2000/0) — not yet a class distribution.
 
 ## Split / leakage validation
 
-Logic implemented and unit-tested (`tests/test_manifest.py`:
-`test_group_aware_split_keeps_group_together`,
-`test_check_split_overlap_detects_leaked_group`, etc.). Not yet run against
-a real BDD100K manifest.
+Logic implemented and unit-tested. The DatasetNinja `test` split is
+excluded from manifest building entirely (no usable ground truth). This
+dataset has no real group/sequence ID (independent frames), so group-aware
+splitting falls back to its documented seeded-random behavior — verified
+end-to-end against the synthetic Supervisely fixture, not yet against real
+data.
 
 ## Real metrics
 
 **Pending.** No model has been trained on real data in this environment
-(no TensorFlow installed, no BDD100K present).
+(no TensorFlow installed, no real dataset present).
 
 ## Blockers
 
 1. TensorFlow is not installed locally (`pip install tensorflow`).
-2. BDD100K images + annotations are not present locally (see
+2. The real BDD100K Images 10K `.tar` is not present locally (see
    `docs/bdd100k_setup.md`).
 
 ## Manual user action required
 
 1. Install TensorFlow (`pip install tensorflow`, or run in Google Colab
    which has it preinstalled).
-2. Download BDD100K (images 100k + object-detection labels) from the
-   official source and place under `data/raw/bdd100k/` as documented in
+2. Download BDD100K Images 10K (DatasetNinja, Supervisely format) and place
+   it at `data/raw/bdd100k/bdd100k_10k_supervisely.tar`, per
    `docs/bdd100k_setup.md`.
-3. Re-run, in order: `scripts/00` through `scripts/05`.
+3. Re-run, in order: `scripts/00` through `scripts/05` (script 02 extracts
+   the `.tar` automatically).
 
 ## Recommended next step
 
-Once BDD100K is placed: run `scripts/00_check_environment.py` through
+Once the `.tar` is placed: run `scripts/00_check_environment.py` through
 `scripts/05_validate_dataset.py` in order, review
 `reports/dataset_audit.md` + `reports/figures/`, record the Full Frame vs
 ROI decision in `docs/decisions_log.md`, then open `notebooks/00` and `01`
 to inspect the real data and run a short baseline training for honest
-preliminary metrics.
+preliminary metrics (per-target and derived 4-state).

@@ -13,8 +13,8 @@ schema so notebooks/training code require no changes.
 | `label` | str | One of `CLEAR`, `VEHICLE`, `PEDESTRIAN`, `MIXED`. |
 | `split` | str | One of `TRAIN`, `VALIDATION`, `TEST`. |
 | `source_dataset` | str | e.g. `BDD100K`, `NEURODRIVER_COLOMBIA`. |
-| `has_vehicle` | bool | Derived from the chosen labeling strategy. |
-| `has_pedestrian` | bool | Derived from the chosen labeling strategy. |
+| `has_vehicle` | bool | Derived from the chosen labeling strategy. **Also the first of the two training targets** (see "Multi-label training" below). |
+| `has_pedestrian` | bool | Derived from the chosen labeling strategy. **Also the second training target.** |
 | `has_motorcycle` | bool | Explicit even though motorcycle folds into VEHICLE. |
 
 Validated by `neurodriver_cnn.data.manifest.validate_manifest_invariants`.
@@ -30,10 +30,26 @@ Validated by `neurodriver_cnn.data.manifest.validate_manifest_invariants`.
 - `label_source` — provenance of the label (see below);
 - Teacher/KD metadata (see below).
 
+## Multi-label training (updated 2026-09-22)
+
+Models train directly on the two required boolean fields `has_vehicle` /
+`has_pedestrian` as independent binary targets (`vehicle_logit`,
+`pedestrian_logit`, `BinaryCrossentropy(from_logits=True)`), not on `label`
+as a 4-way softmax target — real class counts showed `PEDESTRIAN` is too
+imbalanced for a single softmax to represent well. `label` remains in the
+manifest and is still the field used for the derived 4-state
+CLEAR/VEHICLE/PEDESTRIAN/MIXED reporting (confusion matrix, F1,
+presentation), computed the same way at both manifest-build time
+(`neurodriver_cnn.labeling.frame_labels.derive_label`) and at model
+evaluation time from thresholded predictions
+(`neurodriver_cnn.evaluation.metrics.labels_from_logits`). See
+`docs/decisions_log.md`.
+
 ## BDD100K-specific fields (adapter output, not part of the common contract)
 
 `scripts/02_build_manifest.py` also writes BDD100K-specific columns
-(`label_fullframe`, `label_roi`, per-strategy counts/flags, `bdd_split`,
+(`label_fullframe`, `label_roi`, per-strategy counts/flags, `raw_split`
+(the DatasetNinja `train`/`val` split name — `test` is never loaded),
 `image_available`, `annotation_available`, `valid_sample`) so both labeling
 strategies remain comparable. Common-contract training code should only
 read the required/optional fields above, not these adapter-specific ones.

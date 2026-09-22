@@ -18,7 +18,15 @@ AUXILIARY_CATEGORIES = {"rider", "bicycle"}
 MOTORCYCLE_CATEGORY = "motorcycle"
 
 
-def _derive_label(has_vehicle: bool, has_pedestrian: bool) -> str:
+def derive_label(has_vehicle: bool, has_pedestrian: bool) -> str:
+    """Derive the 4-state ADAS label from the two binary training targets.
+
+    This is the single source of truth for the (has_vehicle, has_pedestrian)
+    -> {CLEAR, VEHICLE, PEDESTRIAN, MIXED} mapping, used both when building
+    manifest ground truth here and when deriving predictions from the
+    models' two sigmoid outputs at evaluation time
+    (``neurodriver_cnn.evaluation.metrics``).
+    """
     if has_vehicle and has_pedestrian:
         return "MIXED"
     if has_vehicle:
@@ -40,7 +48,7 @@ def _summarize(relevant_boxes: list[BBox]) -> dict:
     has_motorcycle = num_motorcycles > 0
 
     return {
-        "label": _derive_label(has_vehicle, has_pedestrian),
+        "label": derive_label(has_vehicle, has_pedestrian),
         "has_vehicle": has_vehicle,
         "has_pedestrian": has_pedestrian,
         "has_motorcycle": has_motorcycle,
@@ -63,13 +71,20 @@ def classify_roi(
     image_height: int,
     roi_config: ROIConfig | None = None,
 ) -> dict:
-    """ADAS ROI strategy: only objects relevant to the configured ROI count."""
+    """ADAS ROI strategy: only objects relevant to the configured ROI count.
+
+    Objects smaller than ``roi_config.min_bbox_area_ratio`` (fraction of
+    image area) are excluded before the ROI-relevance test, as tiny/distant
+    detections in this dataset were found by visual review to be mostly
+    noise (see docs/decisions_log.md, 2026-09-22).
+    """
     roi_config = roi_config or ROIConfig()
     roi_box = roi_pixel_box(roi_config, image_width, image_height)
 
+    sized = [b for b in boxes if b.bbox_area_ratio >= roi_config.min_bbox_area_ratio]
     relevant = [
         b
-        for b in boxes
+        for b in sized
         if is_bbox_roi_relevant(
             (b.x1, b.y1, b.x2, b.y2), roi_box, roi_config.bbox_intersection_threshold
         )

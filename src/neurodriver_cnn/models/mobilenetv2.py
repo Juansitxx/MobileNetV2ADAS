@@ -1,13 +1,19 @@
-"""MobileNetV2 Student — the primary architecture and future KD Student.
+"""MobileNetV2 Student — the primary architecture and future KD Student 1.
 
-Pre-Softmax logits are kept directly accessible (``logits_model``) so a
-future Knowledge Distillation loss can consume them without rebuilding the
-network. See docs/teacher_student_contract.md.
+Outputs **two independent logits** (vehicle, pedestrian) via the ``logits``
+layer, not a 4-way softmax — see ``neurodriver_cnn.models.baseline`` module
+docstring for why (PEDESTRIAN class imbalance) and
+docs/decisions_log.md (2026-09-22). The model itself IS the logits model
+(no separate pre-softmax model is needed anymore, since there is no
+softmax): compile with ``BinaryCrossentropy(from_logits=True)`` and derive
+probabilities/4-state labels post-hoc via
+``neurodriver_cnn.evaluation.metrics``. This keeps logits directly
+accessible for a future KD loss, per docs/teacher_student_contract.md.
 """
 
 from __future__ import annotations
 
-NUM_CLASSES = 4
+NUM_TARGETS = 2  # [vehicle_logit, pedestrian_logit]
 INPUT_SHAPE = (224, 224, 3)
 
 
@@ -16,14 +22,12 @@ def build_mobilenetv2_student(
     dropout: float = 0.3,
     freeze_backbone: bool = True,
 ):
-    """ImageNet MobileNetV2(include_top=False) -> GAP -> Dropout -> Dense(4, logits) -> Softmax.
+    """ImageNet MobileNetV2(include_top=False) -> GAP -> Dropout -> Dense(2, logits).
 
-    Returns ``(full_model, logits_model, base_model)``:
-    - ``full_model``: image -> softmax probabilities (deployment/training target).
-    - ``logits_model``: image -> pre-softmax logits (for future KD).
+    Returns ``(model, base_model)``:
+    - ``model``: image -> two raw logits (the trainable/KD-logits model).
     - ``base_model``: the MobileNetV2 backbone (for later selective unfreezing).
     """
-    import tensorflow as tf
     from tensorflow.keras import layers, models
     from tensorflow.keras.applications import mobilenet_v2
 
@@ -38,13 +42,10 @@ def build_mobilenetv2_student(
     x = base_model(x, training=False)
     x = layers.GlobalAveragePooling2D(name="global_average_pooling")(x)
     x = layers.Dropout(dropout, name="head_dropout")(x)
-    logits = layers.Dense(NUM_CLASSES, name="logits")(x)
-    outputs = layers.Softmax(name="predictions")(logits)
+    logits = layers.Dense(NUM_TARGETS, name="logits")(x)
 
-    full_model = models.Model(inputs=inputs, outputs=outputs, name="mobilenetv2_student")
-    logits_model = models.Model(inputs=inputs, outputs=logits, name="mobilenetv2_student_logits")
-
-    return full_model, logits_model, base_model
+    model = models.Model(inputs=inputs, outputs=logits, name="mobilenetv2_student")
+    return model, base_model
 
 
 def unfreeze_for_fine_tuning(base_model, unfreeze_from_layer: int | None = None) -> None:
@@ -73,8 +74,9 @@ def compile_student(model, learning_rate: float = 1e-3):
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"],
+        loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+        # threshold=0.0 on raw logits == probability threshold 0.5.
+        metrics=[tf.keras.metrics.BinaryAccuracy(name="binary_accuracy", threshold=0.0)],
     )
     return model
 

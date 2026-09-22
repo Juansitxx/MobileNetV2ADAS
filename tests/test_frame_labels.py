@@ -89,3 +89,20 @@ def test_roi_config_is_echoed_in_result():
     roi = ROIConfig()
     result = classify_roi([], W, H, roi)
     assert result["roi_config"]["bbox_intersection_threshold"] == roi.bbox_intersection_threshold
+
+
+def test_roi_excludes_object_below_min_bbox_area_ratio():
+    roi = ROIConfig(min_bbox_area_ratio=0.01)  # 1% of image area
+    # Tiny box well inside the ROI: area = 5x5 = 25 -> ratio 0.000025, below threshold.
+    tiny_box = [make_box("pedestrian", 500, 500, 505, 505)]
+    result = classify_roi(tiny_box, W, H, roi)
+    assert result["label"] == "CLEAR"
+    assert result["num_pedestrians"] == 0
+
+
+def test_roi_keeps_object_at_or_above_min_bbox_area_ratio():
+    roi = ROIConfig(min_bbox_area_ratio=0.01)
+    # 150x150 box = 22500 area -> ratio 0.0225, above threshold, inside ROI.
+    big_box = [make_box("pedestrian", 450, 450, 600, 600)]
+    result = classify_roi(big_box, W, H, roi)
+    assert result["label"] == "PEDESTRIAN"

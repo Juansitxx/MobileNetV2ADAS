@@ -1,72 +1,98 @@
 # BDD100K setup
 
-Status as of this Phase 1 scaffolding: **BDD100K is not present in this
-repository.** No unofficial mirror is used or recommended; no large archive
-is downloaded automatically.
+**Updated 2026-09-22** — the dataset actually available for this project is
+**BDD100K Images 10K**, redistributed by DatasetNinja in **Supervisely
+format**, not the official BDD100K 100k `box2d` label release originally
+assumed. See `docs/decisions_log.md` for why (real inspection of the
+acquired data).
 
 ## What to download
 
-From the official BDD100K site (https://bdd-data.berkeley.edu/, login
-required) or the official BDD100K download portal, obtain:
-
-1. **Images (100K set)** — the `bdd100k_images_100k.zip` package (train +
-   val splits). This project does not need the `test` split for Phase 1
-   (no labels are published for it) and does not need the 10K/tracking/
-   segmentation/lane packages.
-2. **Object detection labels** — the detection-2020 label JSON package
-   (commonly `bdd100k_labels_release.zip`, containing
-   `bdd100k_labels_images_train.json` and `bdd100k_labels_images_val.json`).
-   This project does not need segmentation masks, lane masks, drivable-area
-   masks, or tracking annotations for Phase 1.
+From DatasetNinja's BDD100K Images 10K page, download the dataset export as
+a single `.tar` archive in Supervisely format.
 
 ## Where to place it
 
-Extract so the layout matches:
-
 ```text
 data/raw/bdd100k/
-├── images/
-│   └── 100k/
-│       ├── train/   # *.jpg
-│       └── val/     # *.jpg
-└── labels/
-    ├── bdd100k_labels_images_train.json
-    └── bdd100k_labels_images_val.json
+└── bdd100k_10k_supervisely.tar
 ```
 
-`data/raw/` is treated as **read-only** by every script and notebook in
-this repository — nothing here writes into it.
+`data/raw/` is treated as **read-only** — nothing writes into
+`bdd100k_10k_supervisely.tar` itself. `scripts/02_build_manifest.py`
+extracts it once (idempotent, marked with a `.extracted` file) into:
 
-## Verification
-
-After placing the files, run:
-
-```bash
-python scripts/00_check_environment.py
+```text
+data/raw/bdd100k/extracted/
+├── train/
+│   ├── ann/*.jpg.json
+│   └── img/*.jpg
+├── val/
+│   ├── ann/*.jpg.json
+│   └── img/*.jpg
+└── test/
+    ├── ann/*.jpg.json   # present but empty of objects — never loaded
+    └── img/*.jpg
 ```
 
-Expect `[OK] BDD100K image directories found` and
-`[OK] BDD100K annotation file(s) found`. Then run:
+(An extra wrapping folder inside the tar is tolerated —
+`neurodriver_cnn.data.bdd100k.find_split_dir` searches recursively for
+`train`/`val`/`test` directories rather than assuming an exact nesting
+depth.)
 
-```bash
-python scripts/01_inspect_bdd100k.py
+## Annotation format (Supervisely, not official BDD100K box2d)
+
+Real inspection (`scripts/01_inspect_bdd100k.py`, `reports/schema_analysis.md`)
+showed per-image JSON files with **polygon** (occasionally rectangle)
+geometry, not `box2d`:
+
+```json
+{
+  "size": {"width": 1280, "height": 720},
+  "tags": [{"name": "weather", "value": "clear"}],
+  "objects": [
+    {"classTitle": "car", "geometryType": "polygon",
+     "points": {"exterior": [[x, y], ...], "interior": []}}
+  ]
+}
 ```
 
-to confirm the real annotation schema (record count, category names, bbox
-format, available metadata) before manifest generation, and check
-`reports/schema_analysis.md`.
+`neurodriver_cnn.data.bdd100k.polygon_to_bbox` derives an axis-aligned
+bounding box from `points.exterior` via `x1=min(x), y1=min(y), x2=max(x),
+y2=max(y)`. This project still does not train an object detector — the
+derived box is only used to compute frame-level labels.
 
-## If you cannot download BDD100K yet
+## The DatasetNinja `test` split has no usable ground truth
 
-Everything else in this repository (code, tests, docs, notebook
-scaffolding) has been prepared without requiring real image data. Once the
-files above are placed, re-run, in order:
+Real counts (see `docs/decisions_log.md`, 2026-09-22):
+
+| Split | JSON records | Records with >=1 object |
+|---|---|---|
+| train | 7000 | 6891 |
+| val | 1000 | 981 |
+| test | 2000 | **0** |
+
+`test` is therefore **never loaded** for manifest building or evaluation.
+The Common Manifest is built from `train`/`val` only:
+raw `train` -> internal TRAIN + VALIDATION, raw `val` -> academic TEST.
+
+## No real sequence/group identifier
+
+BDD100K Images 10K consists of independent frames, not tracking sequences —
+there is no real video/run ID to preserve. `group_id` is always `None` in
+this dataset (never invented); the group-aware split falls back to a seeded
+random per-row split (see `neurodriver_cnn.data.manifest.group_aware_split`).
+
+## Verification / build commands
 
 ```bash
-python scripts/00_check_environment.py
-python scripts/01_inspect_bdd100k.py
-python scripts/02_build_manifest.py
+python scripts/00_check_environment.py     # expect [OK] for the .tar or its extracted form
+python scripts/01_inspect_bdd100k.py       # reads the .tar directly, writes reports/schema_analysis.md
+python scripts/02_build_manifest.py        # extracts (once) + builds data/processed/manifests/bdd100k_manifest.csv
 python scripts/03_analyze_manifest.py
 python scripts/04_build_experiment_subset.py
 python scripts/05_validate_dataset.py
 ```
+
+`scripts/02_build_manifest.py` accepts `--tar PATH` / `--extract-dir PATH`
+if the archive is not at the default location above.

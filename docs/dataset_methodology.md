@@ -2,29 +2,51 @@
 
 ## Source data
 
-BDD100K (Berkeley DeepDrive) object-detection annotations + images. This is
-a **provisional SOURCE DOMAIN**, chosen for its scale and diversity, not
-because it resembles Colombian driving. See `docs/bdd100k_setup.md` for
-acquisition and `docs/colombian_domain_strategy.md` for the future target
-domain.
+**BDD100K Images 10K**, redistributed by DatasetNinja in **Supervisely
+format** (`.tar` of per-image polygon annotations) — not the official
+BDD100K 100k `box2d` release originally assumed (see
+`docs/decisions_log.md`, 2026-09-22). This is a **provisional SOURCE
+DOMAIN**, chosen for its scale and diversity, not because it resembles
+Colombian driving. See `docs/bdd100k_setup.md` for acquisition and
+`docs/colombian_domain_strategy.md` for the future target domain.
 
-## From bounding boxes to frame labels
+## From polygons to frame labels
 
 This is a frame-level classification project, not an object-detection
-project. BDD100K's official object bounding boxes are used only to derive a
-single label per frame:
+project. Supervisely polygon/rectangle annotations are converted to
+axis-aligned bounding boxes (`x1=min(x), y1=min(y), x2=max(x), y2=max(y)`)
+only to derive a single label per frame:
 
 ```text
-BDD100K image + official object annotations
+BDD100K Images 10K frame + Supervisely polygon annotations
+-> polygon_to_bbox (derived axis-aligned box)
 -> category mapping (vehicle / pedestrian / auxiliary)
 -> labeling strategy (Full Frame or ADAS ROI)
--> frame label (CLEAR / VEHICLE / PEDESTRIAN / MIXED)
+-> frame label (CLEAR / VEHICLE / PEDESTRIAN / MIXED) as has_vehicle/has_pedestrian
 -> Common Manifest row
--> CNN (RGB image in, label out)
+-> CNN (RGB image in, two binary targets out — see "Multi-label reformulation" below)
 ```
 
 Parsing lives in `src/neurodriver_cnn/data/bdd100k.py`; category mapping and
 label derivation live in `src/neurodriver_cnn/labeling/`.
+
+## Excluded split: DatasetNinja `test`
+
+Real inspection found `test` has zero annotated objects in all 2000
+records (train: 6891/7000 with objects, val: 981/1000). It carries no
+usable ground truth and is never loaded by
+`scripts/02_build_manifest.py`. See `docs/bdd100k_setup.md`.
+
+## Multi-label reformulation (not 4-class softmax)
+
+Real class counts showed severe imbalance for pure `PEDESTRIAN` frames.
+Models are trained on two independent binary targets — `has_vehicle`,
+`has_pedestrian` — via `BinaryCrossentropy(from_logits=True)` on two raw
+logits (`vehicle_logit`, `pedestrian_logit`), not a 4-way softmax. The four
+ADAS states are derived post-hoc from thresholded sigmoid probabilities
+(`neurodriver_cnn.evaluation.metrics.labels_from_logits`; threshold
+configurable, default 0.5) for confusion-matrix/F1/presentation purposes.
+See `docs/decisions_log.md` (2026-09-22).
 
 ## Category mapping
 
@@ -32,16 +54,20 @@ label derivation live in `src/neurodriver_cnn/labeling/`.
 - `pedestrian`: `pedestrian`
 - `auxiliary` (excluded from vehicle/pedestrian): `rider`, `bicycle`
 
-These are the official BDD100K category names as documented publicly;
-`scripts/01_inspect_bdd100k.py` re-confirms them against the real annotation
-file before manifest generation, and `reports/schema_analysis.md` records
+These are the BDD100K `classTitle` category names as re-exported by
+DatasetNinja; `scripts/01_inspect_bdd100k.py` re-confirms them against the
+real annotation archive before manifest generation, and
+`reports/schema_analysis.md` records
 what was actually found.
 
 ## Two labeling strategies
 
 **Full Frame** — any mapped object anywhere in the image counts.
 **ADAS ROI** — only objects relevant to a configurable forward-driving
-corridor count (see `configs/dataset_config.json` → `roi`).
+corridor count, additionally excluding objects smaller than
+`roi.min_bbox_area_ratio` (0.0005, set from visual review — see
+`docs/decisions_log.md`, 2026-09-22) as likely noise (see
+`configs/dataset_config.json` → `roi`).
 
 Both are implemented and both are computed for every frame in the manifest
 so they can be compared with real statistics (`reports/dataset_audit.md`)

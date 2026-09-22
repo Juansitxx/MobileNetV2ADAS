@@ -29,10 +29,17 @@ ImageNet MobileNetV2
   code.
 - Two ground-truth labeling strategies (Full Frame, ADAS ROI), compared with
   real evidence before a permanent choice.
-- A simple CNN baseline and a MobileNetV2 transfer-learning Student, with
-  logits exposed for a future Knowledge Distillation loss.
+- A simple CNN baseline (also Student 2 in the KD ladder), a MobileNetV2
+  transfer-learning Student, and a future ResNet50 Teacher architecture —
+  all three sharing a two-logit (vehicle, pedestrian) output space so a
+  future KD loss needs no adapter layer.
+- Multi-label training (independent `has_vehicle`/`has_pedestrian` binary
+  targets) instead of 4-class softmax, adopted after real data showed
+  severe PEDESTRIAN class imbalance; the four ADAS states are still derived
+  for reporting (see `docs/decisions_log.md`, 2026-09-22).
 - Evaluation utilities beyond Accuracy (Precision/Recall/F1, confusion
-  matrix, parameter count, model size, latency, motorcycle subset).
+  matrix, parameter count, estimated FLOPs, model size, latency,
+  motorcycle subset).
 - Design/documentation for Colombian fine-tuning and Teacher-Student KD
   (not executed yet).
 
